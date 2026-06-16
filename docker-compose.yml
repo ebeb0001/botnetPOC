@@ -1,0 +1,237 @@
+services:
+  c2:
+    build:
+      context: .
+      dockerfile: services/c2/Dockerfile
+    environment:
+      SERVICE_NAME: c2-server
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+      ALLOWED_COMMANDS: collect_status,inventory,quarantine,rotate_credentials,single_request
+      DEMO_TARGET_URL: http://target_server:8000/
+      ALLOWED_DEMO_TARGET_HOSTS: target_server
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks: [mirai_lab]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  detector:
+    build:
+      context: .
+      dockerfile: services/detector/Dockerfile
+    environment:
+      SERVICE_NAME: detector
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      # MITIGATOR_URL: http://mitigator:5000
+      FORWARD_ALERTS: "true"
+      ALERT_FAILURE_THRESHOLD: "3"
+    ports:
+      - "127.0.0.1:8081:5000"
+    networks: [mirai_lab]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # mitigator:
+  #   build:
+  #     context: .
+  #     dockerfile: services/mitigator/Dockerfile
+  #   environment:
+  #     SERVICE_NAME: mitigator
+  #     SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+  #     C2_URL: http://c2:5000
+  #     AUTO_MITIGATE: "false"
+  #     DEVICE_URLS: http://camera:5000,http://router:5000,http://dvr:5000,http://light:5000
+  #   ports:
+  #     - "127.0.0.1:8082:5000"
+  #   networks: [mirai_lab]
+  #   depends_on:
+  #     c2:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
+
+  target_server:
+    build:
+      context: .
+      dockerfile: services/target/Dockerfile
+    environment:
+      SERVICE_NAME: target-server
+      PORT: "8000"
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+    ports:
+      - "127.0.0.1:8080:8000"
+    networks: [mirai_lab]
+    depends_on:
+      detector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  camera:
+    build:
+      context: .
+      dockerfile: services/iot_device/Dockerfile
+    environment:
+      SERVICE_NAME: camera
+      DEVICE_ID: camera-01
+      DEVICE_PROFILE: ip-camera
+      DEVICE_CREDENTIALS: admin:admin
+      MITIGATION_ENABLED: "false"
+      INFECTION_ALLOWED: "true"
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+      DEMO_TARGET_URL: http://target_server:8000/
+      ALLOWED_DEMO_TARGET_HOSTS: target_server
+    ports:
+      - "127.0.0.1:5001:5000"
+    networks: [mirai_lab]
+    depends_on:
+      detector:
+        condition: service_healthy
+      target_server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  router:
+    build:
+      context: .
+      dockerfile: services/iot_device/Dockerfile
+    environment:
+      SERVICE_NAME: router
+      DEVICE_ID: router-01
+      DEVICE_PROFILE: home-router
+      DEVICE_CREDENTIALS: root:12345
+      MITIGATION_ENABLED: "false"
+      INFECTION_ALLOWED: "true"
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+      DEMO_TARGET_URL: http://target_server:8000/
+      ALLOWED_DEMO_TARGET_HOSTS: target_server
+    ports:
+      - "127.0.0.1:5002:5000"
+    networks: [mirai_lab]
+    depends_on:
+      detector:
+        condition: service_healthy
+      target_server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dvr:
+    build:
+      context: .
+      dockerfile: services/iot_device/Dockerfile
+    environment:
+      SERVICE_NAME: dvr
+      DEVICE_ID: dvr-01
+      DEVICE_PROFILE: dvr
+      DEVICE_CREDENTIALS: user:user
+      MITIGATION_ENABLED: "false"
+      INFECTION_ALLOWED: "true"
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+      DEMO_TARGET_URL: http://target_server:8000/
+      ALLOWED_DEMO_TARGET_HOSTS: target_server
+    ports:
+      - "127.0.0.1:5003:5000"
+    networks: [mirai_lab]
+    depends_on:
+      detector:
+        condition: service_healthy
+      target_server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  light:
+    build:
+      context: .
+      dockerfile: services/iot_device/Dockerfile
+    environment:
+      SERVICE_NAME: light
+      DEVICE_ID: light-strong-01
+      DEVICE_PROFILE: smart-light
+      DEVICE_CREDENTIALS: light_admin:light-strong-pass-2026
+      MITIGATION_ENABLED: "false"
+      INFECTION_ALLOWED: "true"
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      DETECTOR_URL: http://detector:5000
+      DEMO_TARGET_URL: http://target_server:8000/
+      ALLOWED_DEMO_TARGET_HOSTS: target_server
+    ports:
+      - "127.0.0.1:5004:5000"
+    networks: [mirai_lab]
+    depends_on:
+      detector:
+        condition: service_healthy
+      target_server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  scanner:
+    profiles: ["manual"]
+    build:
+      context: .
+      dockerfile: services/bot_scanner/Dockerfile
+    environment:
+      SERVICE_NAME: scanner
+      SCANNER_ID: mirai-sim-scanner
+      SIMULATION_TOKEN: ${SIMULATION_TOKEN:-local-simulation-token}
+      C2_URL: http://c2:5000
+      DETECTOR_URL: http://detector:5000
+      TARGET_URLS: http://camera:5000,http://router:5000,http://dvr:5000,http://light:5000
+      ALLOWED_TARGET_HOSTS: camera,router,dvr,light
+      CREDENTIAL_DICTIONARY: admin:admin,root:12345,user:user,admin:password
+      AUTO_SCAN: "false"
+      RUN_ONCE: "true"
+      SCAN_ONCE: "true"
+      COMMAND_POLL_INTERVAL_SECONDS: "3"
+    networks: [mirai_lab]
+    depends_on:
+      c2:
+        condition: service_healthy
+      detector:
+        condition: service_healthy
+      camera:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+      dvr:
+        condition: service_healthy
+      light:
+        condition: service_healthy
+      target_server:
+        condition: service_healthy
+
+networks:
+  mirai_lab:
+    driver: bridge
